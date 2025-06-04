@@ -1,0 +1,51 @@
+.program pio_review
+
+.wrap_target
+    out x, 1
+    jmp !x do_zero
+do_one:
+    set pins, 1 [4]
+    jmp cont
+do_zero:
+    set pins, 1 [2]
+    set pins, 0 [2]
+cont:
+    set pins, 0 [1]
+.wrap
+
+
+% c-sdk {
+static inline void pio_review_program_init(PIO pio, uint sm, uint offset, uint pin)
+{
+    // Obtém a configuração padrão para a máquina de estado
+    pio_sm_config config = pio_review_program_get_default_config(offset);
+
+    // Define o pino como parte do grupo de saída (set) da instrução `set`
+    sm_config_set_set_pins(&config, pin, 1);
+
+    // Inicializa o pino GPIO para ser controlado pelo PIO
+    pio_gpio_init(pio, pin);
+
+    // Configura a direção do pino como saída
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+
+    // Configura a frequência do clock PIO para 8 MHz
+    float div = clock_get_hz(clk_sys) / 8000000.0;
+    sm_config_set_clkdiv(&config, div);
+
+    // Une os FIFOs da máquina de estado para uso exclusivo de TX (envio de dados)
+    sm_config_set_fifo_join(&config, PIO_FIFO_JOIN_TX);
+
+    // Configura o deslocamento de saída: sem inversão, com autopull, threshold de 24 bits
+    sm_config_set_out_shift(&config, false, true, 24);
+
+    // Mantém o último valor definido nos pinos (sticky), sem outras configurações especiais
+    sm_config_set_out_special(&config, true, false, false);
+
+    // Inicializa a máquina de estado com a configuração definida
+    pio_sm_init(pio, sm, offset, &config);
+    
+    // Ativa a máquina de estado
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}

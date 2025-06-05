@@ -314,8 +314,6 @@ int main(void) {
         pwm_set_gpio_level(LED_G, PWM_WRAP * 0.5);
         cyw43_arch_poll();
         cyw43_arch_wait_for_work_until(make_timeout_time_ms(10000));
-        pwm_set_gpio_level(LED_G, PWM_WRAP * 0);
-        sleep_ms(50);
     }
 
     INFO_printf("mqtt client exiting\n");

@@ -1,10 +1,3 @@
- /* AULA IoT - Ricardo Prates - 001 - Cliente MQTT - Publisher:/Temperatura; Subscribed:/led
- *
- * Material de suporte - 27/05/2025
- * 
- * Código adaptado de: https://github.com/raspberrypi/pico-examples/tree/master/pico_w/wifi/mqtt 
- */
-
 #include "pico/stdlib.h"            // Biblioteca da Raspberry Pi Pico para funções padrão (GPIO, temporização, etc.)
 #include "pico/cyw43_arch.h"        // Biblioteca para arquitetura Wi-Fi da Pico com CYW43
 #include "pico/unique_id.h"         // Biblioteca com recursos para trabalhar com os pinos GPIO do Raspberry Pi Pico
@@ -28,7 +21,6 @@
 #define LED_B 12
 #define BUZZ_A 10
 #define BUZZ_B 21
-#define FAN 9
 #define JOY_X 26
 #define JOY_Y 27
 
@@ -212,6 +204,7 @@ int main(void) {
 
     //configura a pio estática
     config_pio(&my_pio);
+    //Ativa pwm nos leds e no buzzer - ver funções da linha 784
     led_pwm();
     buzzer_pwm();
     // pwm_set_gpio_level(BUZZ_A, PWM_WRAP * 0.75);
@@ -221,7 +214,7 @@ int main(void) {
     INFO_printf("mqtt client starting\n");
     pwm_set_gpio_level(LED_B, PWM_WRAP * 0.5);
 
-    // Inicializa o conversor ADC
+    // Inicializa o conversor ADC (a leitura do sensor de temperatura interna foi trocada para as leituras do joystick - ver função da linha 516)
     adc_init();
     adc_set_temp_sensor_enabled(true);
     adc_select_input(4);
@@ -299,7 +292,7 @@ int main(void) {
     int err = dns_gethostbyname(MQTT_SERVER, &state.mqtt_server_address, dns_found, &state);
     cyw43_arch_lwip_end();
 
-    // Se tiver o endereço, inicia o cliente
+    // Se tiver o endereço, inicia o cliente (linha 707)
     if (err == ERR_OK) {
         start_client(&state);
     } else if (err != ERR_INPROGRESS) { // ERR_INPROGRESS means expect a callback
@@ -315,7 +308,9 @@ int main(void) {
         cyw43_arch_poll();
         cyw43_arch_wait_for_work_until(make_timeout_time_ms(10000));
     }
-
+    pwm_set_gpio_level(LED_B, 0);
+    pwm_set_gpio_level(LED_G, 0);
+    pwm_set_gpio_level(LED_R, 0);
     INFO_printf("mqtt client exiting\n");
     return 0;
 }
@@ -518,6 +513,7 @@ static void publish_temperature(MQTT_CLIENT_DATA_T *state) {
     }
 }
 
+//Tópico que faz as leituras de temperatura e umidade com o joystick
 static void publish_humidity(MQTT_CLIENT_DATA_T *state) {
     static float old_humidity;
     static float old_temperature;
@@ -601,20 +597,24 @@ static void unsub_request_cb(void *arg, err_t err) {
     }
 }
 
-// Tópicos de assinatura
+// Tópicos de assinatura (ver linha 678)
 static void sub_unsub_topics(MQTT_CLIENT_DATA_T* state, bool sub) {
     mqtt_request_cb_t cb = sub ? sub_request_cb : unsub_request_cb;
+    //Tópico de acionamento da luminária
     mqtt_sub_unsub(state->mqtt_client_inst, full_topic(state, "/led"), MQTT_SUBSCRIBE_QOS, cb, state, sub);
+    //Tópico de acionamento da campainha
     mqtt_sub_unsub(state->mqtt_client_inst, full_topic(state, "/ring"), MQTT_SUBSCRIBE_QOS, cb, state, sub);
+    //Tópico de acionamento da mangueira de água
     mqtt_sub_unsub(state->mqtt_client_inst, full_topic(state, "/water"), MQTT_SUBSCRIBE_QOS, cb, state, sub);
     mqtt_sub_unsub(state->mqtt_client_inst, full_topic(state, "/print"), MQTT_SUBSCRIBE_QOS, cb, state, sub);
+    // Tópicos que representam os valores qualitativos das leituras de temperatura e umidade (temp- e hum- Notify)
     mqtt_sub_unsub(state->mqtt_client_inst, full_topic(state, "/tempNotify"), MQTT_SUBSCRIBE_QOS, cb, state, sub);
     mqtt_sub_unsub(state->mqtt_client_inst, full_topic(state, "/humNotify"), MQTT_SUBSCRIBE_QOS, cb, state, sub);
     mqtt_sub_unsub(state->mqtt_client_inst, full_topic(state, "/ping"), MQTT_SUBSCRIBE_QOS, cb, state, sub);
     mqtt_sub_unsub(state->mqtt_client_inst, full_topic(state, "/exit"), MQTT_SUBSCRIBE_QOS, cb, state, sub);
 }
 
-// Dados de entrada MQTT
+// Dados de entrada MQTT - Aqui é realizado o controle dos periféricos
 static void mqtt_incoming_data_cb(void *arg, const u8_t *data, u16_t len, u8_t flags) {
     MQTT_CLIENT_DATA_T* state = (MQTT_CLIENT_DATA_T*)arg;
 #if MQTT_UNIQUE_TOPIC
@@ -676,6 +676,7 @@ static void mqtt_connection_cb(mqtt_client_t *client, void *arg, mqtt_connection
     MQTT_CLIENT_DATA_T* state = (MQTT_CLIENT_DATA_T*)arg;
     if (status == MQTT_CONNECT_ACCEPTED) {
         state->connect_done = true;
+        //Aqui realiza a assinatura nos tópicos (ver linha 599)
         sub_unsub_topics(state, true); // subscribe;
 
         // indicate online
@@ -733,6 +734,7 @@ static void start_client(MQTT_CLIENT_DATA_T *state) {
     // This is important for MBEDTLS_SSL_SERVER_NAME_INDICATION
     mbedtls_ssl_set_hostname(altcp_tls_context(state->mqtt_client_inst->conn), MQTT_SERVER);
 #endif
+//Aqui é colocado o callback da publicação de dados no protocolo MQTT (ver linha 617)
     mqtt_set_inpub_callback(state->mqtt_client_inst, mqtt_incoming_publish_cb, mqtt_incoming_data_cb, state);
     cyw43_arch_lwip_end();
 }

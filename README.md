@@ -9,7 +9,7 @@ Para abertura do servidor (broker) MQTT, foi utilizado o software mosquitto num 
 Par o monitoramento e controle dos periféricos da placa através do protocolo MQTT, foi utilizado o MQTT Explorer num laptop com Windows.
 
 #### Vídeo de funcionamento
-*
+* https://youtu.be/ZxnqypBus3g
 
 
 #### Instruções de compilação
